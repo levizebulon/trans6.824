@@ -18,10 +18,11 @@ package raft
 //
 
 import "sync"
-import "labrpc"
+import "sync/atomic"
+import "../labrpc"
 
 // import "bytes"
-// import "labgob"
+// import "../labgob"
 
 
 
@@ -50,6 +51,7 @@ type Raft struct {
 	peers     []*labrpc.ClientEnd // RPC end points of all peers
 	persister *Persister          // Object to hold this peer's persisted state
 	me        int                 // this peer's index into peers[]
+	dead      int32               // set by Kill()
 
 	// Your data here (2A, 2B, 2C).
 	// Look at the paper's Figure 2 for a description of what
@@ -66,7 +68,6 @@ func (rf *Raft) GetState() (int, bool) {
 	// Your code here (2A).
 	return term, isleader
 }
-
 
 //
 // save Raft's persistent state to stable storage,
@@ -194,13 +195,24 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 }
 
 //
-// the tester calls Kill() when a Raft instance won't
-// be needed again. you are not required to do anything
-// in Kill(), but it might be convenient to (for example)
-// turn off debug output from this instance.
+// the tester doesn't halt goroutines created by Raft after each test,
+// but it does call the Kill() method. your code can use killed() to
+// check whether Kill() has been called. the use of atomic avoids the
+// need for a lock.
+//
+// the issue is that long-running goroutines use memory and may chew
+// up CPU time, perhaps causing later tests to fail and generating
+// confusing debug output. any goroutine with a long-running loop
+// should call killed() to check whether it should stop.
 //
 func (rf *Raft) Kill() {
+	atomic.StoreInt32(&rf.dead, 1)
 	// Your code here, if desired.
+}
+
+func (rf *Raft) killed() bool {
+	z := atomic.LoadInt32(&rf.dead)
+	return z == 1
 }
 
 //
